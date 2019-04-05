@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>PR Guru - </title>
+        <style>
+            body, html { background: #555; margin: 0px; padding: 0px; color: #eee; height: 100%; overflow: hidden;
+                font-family: Arial, Helvetica, sans-serif; }
+            .pr-container { border: 1px solid red; border-radius: 8px; padding: 1em; margin: 1em; float: left;
+                min-height: 4em; min-width: 10em; visibility: hidden; }
+            .pr-container.show { visibility: visible; }
+            .pr-container h2 { margin: 0px 0px 0.5em; }
+        </style>
+    </head>
+    <body>
+        <h1></h1>
+        <footer></footer>
+        <template id="pr-template"><div class="pr-container"><h2>PR TITLE</h2><div>BY / WHEN</div></div></template>
+        <script>
+        (function() {
+            const REPO = window.location.hash.substr(1);
+
+            document.querySelector("h1").innerHTML = REPO;
+            document.title += (" " + REPO);
+
+            function fetchPulls() {
+                req = new XMLHttpRequest();
+                req.open("GET", "https://api.github.com/repos/" + REPO + "/pulls?per_page=10", true);
+                req.onreadystatechange = function() {
+                    if(req.readyState === 4 && req.status === 200) {
+                        
+                        reqj = JSON.parse(req.responseText);
+                        reqj.forEach(pr => {
+                            var prClone = document.importNode(document.querySelector("#pr-template").content, true);
+
+                            prClone.querySelector("h2").innerHTML = pr.title;
+                            prClone.querySelector("div div").innerHTML = "by: " + pr.user.login + "<br/>on: " + pr.created_at;
+                            document.querySelector("body").appendChild(prClone);
+                        });
+                        // Make all PR boxes visible (TODO: test before showing if this fits on screen,
+                        // if not, enter carousel mode)
+                        document.querySelectorAll(".pr-container").forEach(prc => {prc.classList.add("show")});
+                        document.querySelector("body footer").innerHTML = "Last checked: " + new Date();
+                    }
+                };
+                req.send();
+            };
+            fetchPulls();
+            window.setInterval(fetchPulls, 10*60*1000);
+        })();
+        </script>
+    </body>
+</html>
