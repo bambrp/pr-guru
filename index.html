@@ -29,10 +29,10 @@
         <template id="pr-template"><div class="pr-container"><h2>PR TITLE</h2><div>BY / WHEN</div><img/></div></template>
         <script>
         (function() {
-            const REPO = window.location.hash.substr(1);
+            const REPOS = window.location.hash.substr(1);
             var OAUTH2_KEY = localStorage.getItem("OAUTH2_KEY") || undefined;
-            document.querySelector("h1").innerHTML = REPO;
-            document.title += (" - " + REPO);
+            document.querySelector("h1").innerHTML = REPOS;
+            document.title += (" - " + REPOS);
 
             document.querySelector("#oauth2-key").addEventListener("keypress", (event) => {
                 var textBox = event.target;
@@ -46,8 +46,7 @@
 
             function fetchPulls() {
                 req = new XMLHttpRequest();
-                // Add in &since=2019-04-04T00:00:00Z when we are caching results?
-                req.open("GET", "https://api.github.com/repos/" + REPO + "/pulls?per_page=10", true);
+                req.open("GET", "https://api.github.com/search/issues?q=is:open+is:pr+archived:false+repo:"+ REPOS.split(";").join("+repo:"), true);
                 if (OAUTH2_KEY) {
                     req.setRequestHeader("Authorization", "token " + OAUTH2_KEY);
                 }
@@ -58,7 +57,7 @@
                             mainPanel.firstChild.remove();
                         }
                         reqj = JSON.parse(req.responseText);
-                        for (const pr of reqj) {
+                        for (const pr of reqj.items) {
                             var prClone = document.importNode(document.querySelector("#pr-template").content, true);
 
                             prClone.querySelector("h2").innerHTML = pr.title;
