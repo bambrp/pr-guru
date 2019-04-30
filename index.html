@@ -3,30 +3,44 @@
     <head>
         <title>PR Guru</title>
         <style>
-            body, html { background: #555; margin: 0px; padding: 0px 0px 20px; color: #eee; height: 100%; overflow: hidden;
-                font-family: Arial, Helvetica, sans-serif; }
-            .pr-container { border: 1px solid rgb(201, 9, 9); border-radius: 8px 8px 24px 8px; padding: 0.5em; margin: 1em; float: left;
-                min-height: 4em; min-width: 10em; visibility: hidden; position: relative; background: rgb(53, 50, 50); }
+            body, html { background: #555; margin: 0px; padding: 0px 0px 20px; color: #eee; 
+                height: 100%; overflow: hidden; font-family: Arial, Helvetica, sans-serif; }
+            h1 { font-size: 1.8em; }
+            .pr-container { border: 1px solid rgb(201, 9, 9); border-radius: 8px 8px 24px 8px;
+                padding: 0.5em; margin: 0.8em; float: left; min-height: 4em; min-width: 10em;
+                max-width: 480px; visibility: hidden; position: relative; background: rgb(53, 50, 50); }
             .pr-container.show { visibility: visible; }
+            .pr-container h2 { font-weight: normal; font-size: 1.3em; }
             .pr-container h2 { margin: 0px 0px 0.5em; }
             .pr-container > div { padding-right: 48px; }
             h1 { background: #666; margin-top: 0px; padding-top: 0.5em; }
-            footer { height: 22px; padding: 3px; position: fixed; bottom: 0px; background: #666; }
+            footer { height: 1em; padding: 4px;  position: fixed; bottom: 0px;
+                background: #666; width: calc(100% - 8px); border-radius: 11px; }
+            footer.warn { background: rgb(177, 167, 29); }
+            footer.error { background: rgb(177, 46, 29); }
+            footer.ok { background: rgb(29, 177, 61); }
             .pr-container img { height: 48px; width: 48px; border-radius:24px; border:2px solid rgb(201, 9, 9);
-                position: absolute; bottom: -2px; right: -2px; box-shadow: 8px 8px 12px rgb(30,30,30); }
-            #oauth2 { position:fixed; z-index: 999; top: 0px; height: 48px; width: 320px; background: rgb(30,30,30, 0.8); left: 33%; 
-                border: 2px solid #555; border-top: none; border-radius: 0px 0px 8px 8px; }
+                position: absolute; bottom: -2px; right: -2px; box-shadow: 8px 8px 12px rgb(43, 16, 16); }
+            #oauth2 { position:fixed; z-index: 999; top: 0px; background: rgb(30,30,30, 0.8); left: 33%; 
+                border: 2px solid #555; border-top: none; border-radius: 0px 0px 8px 8px; padding: 1em;}
             #oauth2 > div { display: table; height:24px; margin: auto; }
-            #oauth2.up { top: -46px; transition: top 0.8s ease-in; }
+            #oauth2.up { transition: top 0.8s ease-in; }
             #oauth2 input { background: #eee; border: 2px solid #555;}
+            .labels { clear: both; overflow: auto; }
+            .label { font-size: 0.8em; padding: 0.2em; margin: 0.1em; float: left; color: #000; border-radius: 2px; }
         </style>
     </head>
     <body>
-        <div id="oauth2"><div><label>OAuth2 API key: <input type="text" id="oauth2-key" maxlength="42"></label></div></div>
+        <div id="oauth2"><div><label>OAuth2 API key: <input type="text" id="oauth2-key" maxlength="42" size="20"></label></div></div>
         <h1></h1>
         <div id="main-panel"></div>
-        <footer></footer>
-        <template id="pr-template"><div class="pr-container"><h2>PR TITLE</h2><div>BY / WHEN</div><img/></div></template>
+        <footer><span class="last-checked">Starting...</span> - <span class="status"></span></footer>
+        <template id="pr-template"><div class="pr-container">
+                <h2>PR TITLE</h2>
+                <div class="labels"></div>
+                <div class="by-when">BY / WHEN</div>
+                <img/>
+            </div></template>
         <script>
         (function() {
             const REPOS = window.location.hash.substr(1);
@@ -40,42 +54,105 @@
                     OAUTH2_KEY = textBox.value;
                     localStorage.setItem("OAUTH2_KEY", textBox.value)
                     console.info("Setting Oauth2 key.");
-                    document.querySelector("#oauth2").classList.add("up");
+                    hideOauth();
                 }
-            })
+            });
+
+            function hideOauth() {
+                var oauth2 = document.querySelector("#oauth2")
+                oauth2.classList.add("up");
+                // allow a bit showing as handle
+                oauth2.style.top = "-" + (oauth2.getBoundingClientRect().height - 4) + "px";
+            }
+
+            function ago(milliseconds) {
+                var msg;
+                var seconds = ((new Date()).getTime() - milliseconds) / 1000;
+                
+                if (seconds >= (60*60*24*7)) {
+                    var weeks = Math.floor(seconds / (60*60*24*7));
+                    msg = weeks + " week" + (weeks == 1 ? "" : "s");
+                } else if (seconds >= (60*60*24)) {
+                    var days = Math.floor(seconds / (60*60*24))
+                    msg =  days + " day" + (days == 1 ? "" : "s");
+                } else if (seconds >= (60*60)) {
+                    var hours = Math.floor(seconds / (60*60));
+                    msg = hours + " hour" + (hours == 1 ? "" : "s");
+                } else if (seconds >= 60) {
+                    var minutes = Math.floor(seconds / 60);
+                    msg = minutes + " minute" + (minutes == 1 ? "" : "s");
+                } else {
+                    msg = Math.floor(seconds) + " second" + (seconds == 1 ? "" : "s");
+                }
+                return msg + " ago";
+            }
 
             function fetchPulls() {
                 req = new XMLHttpRequest();
                 req.open("GET", "https://api.github.com/search/issues?q=is:open+is:pr+archived:false+repo:"+ REPOS.split(";").join("+repo:"), true);
+                req.timeout = 60 * 1000;
                 if (OAUTH2_KEY) {
                     req.setRequestHeader("Authorization", "token " + OAUTH2_KEY);
                 }
+                req.ontimeout = function() {
+                    document.querySelector("body footer").classList.add("warn");
+                    document.querySelector("body footer .status").innerHTML = "Snore! Timed out waiting for API server";
+                }
                 req.onreadystatechange = function() {
-                    if(req.readyState === 4 && req.status === 200) {
-                        var mainPanel = document.querySelector("#main-panel");
-                        while (mainPanel.firstChild) {
-                            mainPanel.firstChild.remove();
-                        }
-                        reqj = JSON.parse(req.responseText);
-                        for (const pr of reqj.items) {
-                            var prClone = document.importNode(document.querySelector("#pr-template").content, true);
-
-                            prClone.querySelector("h2").innerHTML = pr.title;
-                            prClone.querySelector("img").src = pr.user.avatar_url;
-                            prClone.querySelector("div div").innerHTML = 
-                                "by: " + pr.user.login
-                                + "<br/>on: " + (new Date(Date.parse(pr.created_at))).toUTCString();
-                            mainPanel.appendChild(prClone);
-                            // If this clips the lower border of the viewport, quit the loop.
-                            if (window.innerHeight - mainPanel.lastChild.getBoundingClientRect().bottom < 0) {
-                                mainPanel.lastChild.remove();
-                                console.warn("Quit pr display loop early due to insufficient screen space.");
-                                break;
+                    if(req.readyState === 4) {
+                        if (req.status === 200) {
+                            var mainPanel = document.querySelector("#main-panel");
+                            while (mainPanel.firstChild) {
+                                mainPanel.firstChild.remove();
                             }
+                            reqj = JSON.parse(req.responseText);
+                            for (const pr of reqj.items) {
+                                // We should fetch pr.pull_request.url + "/reviews" to read details of requested reviews
+                                // Given that, we should really be caching where possible.
+                                var prClone = document.importNode(document.querySelector("#pr-template").content, true);
+
+                                prClone.querySelector("h2").innerHTML = pr.title;
+                                var img = prClone.querySelector("img");
+                                img.src = pr.user.avatar_url;
+                                img.alt = "Avatar of " + pr.user.login;
+                                if ("labels" in pr && Array.isArray(pr.labels) && pr.labels.length > 0) {
+                                    var labels = prClone.querySelector(".labels");
+                                    for (const label of pr.labels) {
+                                        newLabel = document.createElement("div");
+                                        newLabel.classList.add("label");
+                                        newLabel.style.backgroundColor = "#" + label.color;
+                                        newLabel.innerHTML = label.name;
+                                        labels.appendChild(newLabel);
+                                    }
+                                }
+                                prClone.querySelector("div div.by-when").innerHTML = 
+                                    "by " + pr.user.login
+                                    + " " + ago(Date.parse(pr.created_at));
+                                mainPanel.appendChild(prClone);
+                                
+                                // If this clips the lower border of the viewport, quit the loop.
+                                if (window.innerHeight - mainPanel.lastChild.getBoundingClientRect().bottom < 0) {
+                                    mainPanel.lastChild.remove();
+                                    console.warn("Quit PR display loop early due to insufficient screen space.");
+                                    break;
+                                }
+                            }
+                            // Make all remaining PR boxes visible
+                            document.querySelector("body footer").classList.remove("warn");
+                            document.querySelector("body footer").classList.add("ok");
+                            document.querySelector("body footer .status").innerHTML = "OK";
+                            document.querySelectorAll(".pr-container").forEach(prc => {prc.classList.add("show")});
+                            document.querySelector("body footer .last-checked").innerHTML = "Checked: " + (new Date).toLocaleString();
+                        } else {
+                            document.querySelector("body footer").classList.add("warn");
+                            document.querySelector("body footer .last-checked").innerHTML = "Checked: " + (new Date).toLocaleString();
+                            var err = "Ouch! API Server responded: " + req.status;
+                            if (req.status == 0) {
+                                err += " (possible network error)";
+                            }
+                            document.querySelector("body footer .status").innerHTML = err;
+                            console.warn("API Server responded:" + req.status);
                         }
-                        // Make all remaining PR boxes visible
-                        document.querySelectorAll(".pr-container").forEach(prc => {prc.classList.add("show")});
-                        document.querySelector("body footer").innerHTML = "Last checked: " + new Date();
                     }
                 };
                 req.send();
