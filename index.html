@@ -22,9 +22,9 @@
             .pr-container img { height: 48px; width: 48px; border-radius:24px; border:2px solid rgb(201, 9, 9);
                 position: absolute; bottom: -2px; right: -2px; box-shadow: 8px 8px 12px rgb(43, 16, 16); }
             #oauth2 { position:fixed; z-index: 999; top: 0px; background: rgb(30,30,30, 0.8); left: 33%; 
-                border: 2px solid #555; border-top: none; border-radius: 0px 0px 8px 8px; padding: 1em;}
+                border: 2px solid #555; border-top: none; border-radius: 0px 0px 8px 8px; padding: 1em;
+                transition: top 0.8s ease-in; }
             #oauth2 > div { display: table; height:24px; margin: auto; }
-            #oauth2.up { transition: top 0.8s ease-in; }
             #oauth2 input { background: #eee; border: 2px solid #555;}
             .labels { clear: both; overflow: auto; }
             .label { font-size: 0.8em; padding: 0.2em; margin: 0.1em; float: left; color: #000; border-radius: 2px; }
@@ -37,23 +37,27 @@
         <footer><span class="last-checked">Starting...</span> - <span class="status"></span></footer>
         <template id="pr-template"><div class="pr-container">
                 <h2>PR TITLE</h2>
+                <div class="repo"></div>
                 <div class="labels"></div>
                 <div class="by-when">BY / WHEN</div>
                 <img/>
             </div></template>
         <script>
         (function() {
-            const REPOS = window.location.hash.substr(1);
+            const REPOS = window.location.hash.substr(1) || undefined;
+            const repoList = REPOS.split(";");
             var OAUTH2_KEY = localStorage.getItem("OAUTH2_KEY") || undefined;
-            document.querySelector("h1").innerHTML = REPOS;
-            document.title += (" - " + REPOS);
+            document.querySelector("h1").innerHTML = repoList.join(", ");
+            document.title += (" - " + repoList.join(", "));
 
             document.querySelector("#oauth2-key").addEventListener("keypress", (event) => {
                 var textBox = event.target;
-                if (event.key == "Enter" && textBox.value.length > 0) {
-                    OAUTH2_KEY = textBox.value;
-                    localStorage.setItem("OAUTH2_KEY", textBox.value)
-                    console.info("Setting Oauth2 key.");
+                if (event.key == "Enter") {
+                    if (textBox.value.length > 0) {
+                        OAUTH2_KEY = textBox.value;
+                        localStorage.setItem("OAUTH2_KEY", textBox.value)
+                        console.info("Setting Oauth2 key.");
+                    }
                     hideOauth();
                 }
             });
@@ -64,6 +68,16 @@
                 // allow a bit showing as handle
                 oauth2.style.top = "-" + (oauth2.getBoundingClientRect().height - 4) + "px";
             }
+
+            function showOauth() {
+                var oauth2 = document.querySelector("#oauth2")
+                oauth2.classList.remove("up");
+                oauth2.style.top = "0px";
+            }
+
+            document.querySelector("#oauth2").addEventListener("click", (event) => {
+                showOauth();
+            });
 
             function ago(milliseconds) {
                 var msg;
@@ -89,7 +103,7 @@
 
             function fetchPulls() {
                 req = new XMLHttpRequest();
-                req.open("GET", "https://api.github.com/search/issues?q=is:open+is:pr+archived:false+repo:"+ REPOS.split(";").join("+repo:"), true);
+                req.open("GET", "https://api.github.com/search/issues?q=is:open+is:pr+archived:false+repo:"+ repoList.join("+repo:"), true);
                 req.timeout = 60 * 1000;
                 if (OAUTH2_KEY) {
                     req.setRequestHeader("Authorization", "token " + OAUTH2_KEY);
@@ -125,6 +139,7 @@
                                         labels.appendChild(newLabel);
                                     }
                                 }
+                                prClone.querySelector("div div.repo").innerHTML = pr.repository_url.split("/").slice(-2).join("/");
                                 prClone.querySelector("div div.by-when").innerHTML = 
                                     "by " + pr.user.login
                                     + " " + ago(Date.parse(pr.created_at));
